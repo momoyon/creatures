@@ -1,4 +1,5 @@
 #include <config.h>
+#include <common.h>
 #include <entities.h>
 
 #define ENGINE_IMPLEMENTATION
@@ -86,6 +87,14 @@ int main(void)
     Entities entities = {0};
     // @DEBUG
     bool apply_force = true;
+    bool apply_gravity = true;
+    float mass = 1.f;
+
+    Entity e = make_entity(GetScreenToWorld2D(v2(width*0.5f, height*0.25f), cam), EK_BASE);
+    e.friction = 0.001f;
+    darr_append(entities, e);
+    e.mass = 10.f;
+    darr_append(entities, e);
 
     while (!quit && !WindowShouldClose()) {
         arena_reset(&temp_arena);
@@ -104,14 +113,24 @@ int main(void)
             debug_draw = !debug_draw;
         }
 
-
         // @DEBUG
         if (IsKeyPressed(KEY_SPACE)) {
-            Entity e = make_entity(m_world);
+            Entity e = make_entity(m_world, EK_BASE);
             e.friction = 0.001f;
+            e.mass = mass;
             darr_append(entities, e);
         }
-        apply_force = IsKeyDown(KEY_X);
+        apply_force   = IsKeyDown(KEY_X);
+        apply_gravity = IsKeyDown(KEY_Z);
+
+        if (IsKeyDown(KEY_Q)) {
+            mass -= GetFrameTime();
+            if (mass <= 0.f) mass = 0.f;
+        }
+        if (IsKeyDown(KEY_E)) {
+            mass += GetFrameTime();
+            if (mass <= 0.f) mass = 0.f;
+        }
 
         BeginTextureMode(ren_tex);
         ClearBackground(BLACK);
@@ -128,7 +147,16 @@ int main(void)
                     Vector2 force = Vector2Normalize(Vector2Subtract(m_world, e->pos));
                     apply_force_to_entity(e, force);
                 }
+
+                e->affected_by_gravity = apply_gravity;
+
+
                 physics_update_entity(e);
+
+                // @TEMP @HACK
+                float screen_bottom = GetScreenToWorld2D(v2(0, height), cam).y;
+                float screen_top    = GetScreenToWorld2D(v2(0, 0), cam).y;
+                if (e->pos.y > screen_bottom) e->pos.y = screen_top;
             }
         } break;
         case MODE_COUNT:
@@ -141,6 +169,8 @@ int main(void)
         if (debug_draw) {
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "m_world: %f, %f", m_world.x, m_world.y);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply force: %s", apply_force ? "true" : "false");
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply gravity: %s", apply_gravity ? "true" : "false");
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "mass: %f", mass);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Entities count: %zu", entities.count);
         }
 
