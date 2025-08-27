@@ -1,6 +1,7 @@
 #include <config.h>
 #include <common.h>
 #include <entities.h>
+#include <segment.h>
 
 #define ENGINE_IMPLEMENTATION
 #include <engine.h>
@@ -11,6 +12,8 @@
 
 #define STB_DS_IMPLEMENTATION
 #include <stb_ds.h>
+
+#include <raylib.h>
 
 #define DRAW_INFO(font_size, color, fmt, ...) do {\
         const char *str = arena_alloc_str(temp_arena, fmt, __VA_ARGS__);\
@@ -27,6 +30,7 @@
 
 typedef enum {
     MODE_NORMAL,
+    MODE_EDIT,
     MODE_COUNT,
 } Mode;
 
@@ -47,11 +51,14 @@ const char* mode_as_str(const Mode m)
     switch (m) {
     case MODE_NORMAL:
         return "Normal";
+    case MODE_EDIT:
+        return "Edit";
     case MODE_COUNT:
     default:
         ASSERT(false, "UNREACHABLE!");
     }
 }
+
 int main(void)
 {
     int width = 0;
@@ -80,21 +87,29 @@ int main(void)
         .zoom = 1.0,
         .offset = CLITERAL(Vector2) { width / 2, height / 2 },
     };
-    Vector2 mpos_from = { 0 };
+    float cam_speed = 180.f;
+    // Vector2 mpos_from = { 0 };
 
     bool quit = false;
 
     Entities entities = {0};
-    // @DEBUG
-    bool apply_force = true;
-    bool apply_gravity = true;
-    float mass = 1.f;
 
-    Entity e = make_entity(GetScreenToWorld2D(v2(width*0.5f, height*0.25f), cam), EK_BASE);
-    e.friction = 0.001f;
-    darr_append(entities, e);
-    e.mass = 10.f;
-    darr_append(entities, e);
+    // Edit
+    Entity_kind edit_entity_kind = EK_BASE;
+    
+    /// @DEBUG
+    bool apply_force = false;
+    bool apply_gravity = false;
+    float mass = 1.f;
+    float force_magnitude = 1.f;
+    /// 
+
+    Rectangle bounds = {
+        .x = -width*1.f,
+        .y = -height*1.f,
+        .width = width*2.f,
+        .height = height*2.f,
+    };
 
     while (!quit && !WindowShouldClose()) {
         arena_reset(&temp_arena);
@@ -113,6 +128,34 @@ int main(void)
             debug_draw = !debug_draw;
         }
 
+        if (IsKeyPressed(KEY_TAB)) {
+            CHANGE_MODE((current_mode + 1) % MODE_COUNT);
+        }
+
+        if (IsKeyDown(KEY_A)) {
+            cam.target.x -= GetFrameTime() * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
+        }
+        if (IsKeyDown(KEY_D)) {
+            cam.target.x += GetFrameTime() * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
+        }
+        if (IsKeyDown(KEY_W)) {
+            cam.target.y -= GetFrameTime() * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
+        }
+        if (IsKeyDown(KEY_S)) {
+            cam.target.y += GetFrameTime() * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
+        }
+
+        if (IsKeyDown(KEY_E)) {
+            cam.zoom += GetFrameTime();
+        }
+
+        if (IsKeyDown(KEY_Q)) {
+            cam.zoom -= GetFrameTime();
+            if (cam.zoom <= 0.001f) cam.zoom = 0.001f;
+        }
+        
+        if (IsKeyPressed(KEY_ZERO)) cam.zoom = 1.f;
+        
         // @DEBUG
         if (IsKeyPressed(KEY_SPACE)) {
             Entity e = make_entity(m_world, EK_BASE);
@@ -123,19 +166,11 @@ int main(void)
         apply_force   = IsKeyDown(KEY_X);
         apply_gravity = IsKeyDown(KEY_Z);
 
-        if (IsKeyDown(KEY_Q)) {
-            mass -= GetFrameTime();
-            if (mass <= 0.f) mass = 0.f;
-        }
-        if (IsKeyDown(KEY_E)) {
-            mass += GetFrameTime();
-            if (mass <= 0.f) mass = 0.f;
-        }
-
         BeginTextureMode(ren_tex);
         ClearBackground(BLACK);
 
         // Update
+        
         // Mode-specific Update
         switch (current_mode) {
         case MODE_NORMAL: {
@@ -144,20 +179,18 @@ int main(void)
                 if (e->dead) continue;
 
                 if (apply_force) {
-                    Vector2 force = Vector2Normalize(Vector2Subtract(m_world, e->pos));
+                    Vector2 force = Vector2Scale(Vector2Normalize(Vector2Subtract(m_world, e->pos)), force_magnitude);
                     apply_force_to_entity(e, force);
                 }
 
                 e->affected_by_gravity = apply_gravity;
 
+                update_entity(e);
 
-                physics_update_entity(e);
-
-                // @TEMP @HACK
-                float screen_bottom = GetScreenToWorld2D(v2(0, height), cam).y;
-                float screen_top    = GetScreenToWorld2D(v2(0, 0), cam).y;
-                if (e->pos.y > screen_bottom) e->pos.y = screen_top;
+                e->pos = warp_in_bounds(e->pos, bounds);
             }
+        } break;
+        case MODE_EDIT: {
         } break;
         case MODE_COUNT:
         default:
@@ -165,13 +198,20 @@ int main(void)
         }
 
         // Draw
-        int y = (DEFAULT_FONT_SIZE) * 2 + (2 * 2);
+        int y = 0;
+        DRAW_INFO(DEFAULT_FONT_SIZE, GOLD, "mode: %s", mode_as_str(current_mode));
         if (debug_draw) {
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "cam: %f, %f (x%f)", cam.target.x, cam.target.y, cam.zoom);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "m_world: %f, %f", m_world.x, m_world.y);
-            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply force: %s", apply_force ? "true" : "false");
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply force: %s (%f)", apply_force ? "true" : "false", force_magnitude);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply gravity: %s", apply_gravity ? "true" : "false");
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "mass: %f", mass);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Entities count: %zu", entities.count);
+
+            BeginMode2D(cam);
+            DrawRectangleLinesEx(bounds, 1.f, WHITE);
+
+            EndMode2D();
         }
 
         // Mode-specific Draw
@@ -184,11 +224,12 @@ int main(void)
                 }
                 EndMode2D();
             } break;
+            case MODE_EDIT: {
+            } break;
             case MODE_COUNT:
             default:
                 ASSERT(false, "UNREACHABLE!");
         }
-
 
         EndTextureMode();
         draw_ren_tex(ren_tex, SCREEN_WIDTH, SCREEN_HEIGHT);

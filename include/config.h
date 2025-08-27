@@ -3,6 +3,6 @@
 
 #define ENTITY_DEFAULT_MAX_SPEED 120.f
 #define DEFAULT_FONT_SIZE 10
-#define GRAVITY_FORCE 9.8f
+#define GRAVITY_FORCE 98.f
 
 #endif // CONFIG_H_
