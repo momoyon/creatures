@@ -99,7 +99,7 @@ int main(void)
     
     /// @DEBUG
     bool apply_force = false;
-    bool apply_gravity = false;
+    bool apply_gravity = true;
     bool follow_mouse = false;
     float mass = 1.f;
     float force_magnitude = 1.f;
@@ -157,8 +157,15 @@ int main(void)
         
         if (IsKeyPressed(KEY_ZERO)) cam.zoom = 1.f;
 
-        
+
         // @DEBUG
+        if (IsKeyDown(KEY_ONE)) {
+            mass -= GetFrameTime();
+            if (mass <= 1.f) mass = 1.f;
+        }
+        if (IsKeyDown(KEY_TWO)) {
+            mass += GetFrameTime();
+        }
         if (IsKeyPressed(KEY_SPACE)) {
             Entity e = make_entity(m_world, edit_entity_kind);
             e.friction = 0.001f;
@@ -168,7 +175,7 @@ int main(void)
         apply_force   = IsKeyDown(KEY_X);
         // apply_gravity = IsKeyDown(KEY_Z);
         follow_mouse  = IsKeyDown(KEY_C);
-
+        
         // Mode-specific Input
         switch (current_mode) {
         case MODE_NORMAL: {
@@ -206,8 +213,26 @@ int main(void)
 
                 e->affected_by_gravity = apply_gravity;
 
-                update_entity(e);
 
+                Vector2 tl = v2(bounds.x, bounds.y);
+                Vector2 tr = v2(bounds.x + bounds.width, bounds.y);
+                Vector2 br = v2(bounds.x + bounds.width, bounds.y + bounds.height);
+                Vector2 bl = v2(bounds.x, bounds.y + bounds.height);
+
+                float radius = entity_radius(e);
+                bool col = false;
+                col |= coll_resolve_circle_line_segment(tl, tr, &e->pos, radius);
+                col |= coll_resolve_circle_line_segment(br, bl, &e->pos, radius);
+                col |= coll_resolve_circle_line_segment(tl, bl, &e->pos, radius);
+                col |= coll_resolve_circle_line_segment(tr, br, &e->pos, radius);
+
+                if (col) {
+                    e->affected_by_gravity = false;
+                    e->vel = Vector2Scale(e->vel, -0.25f);
+                }
+
+                update_entity(e);
+                
                 // e->pos = warp_in_bounds(e->pos, bounds);
             }
         } break;

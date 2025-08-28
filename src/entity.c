@@ -172,7 +172,7 @@ void update_entity(Entity *e) {
 }
 
 void draw_entity(Entity *e, bool debug) {
-    DrawCircleV(e->pos, (e->mass*1.5f) + 8.f, ColorFromHSV(e->mass * 100.f, 1.f, 1.f));
+    DrawCircleV(e->pos, entity_radius(e), ColorFromHSV(e->mass * 100.f, 1.f, 1.f));
     if (debug) {
         Vector2 vel_line_end = Vector2Add(e->pos, e->vel);
         DrawLineV(e->pos, vel_line_end, BLUE);
@@ -199,4 +199,8 @@ void draw_entity(Entity *e, bool debug) {
         case EK_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
+}
+
+float entity_radius(Entity *e) {
+    return (e->mass*1.5f) + 8.f;
 }

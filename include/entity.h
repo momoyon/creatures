@@ -57,5 +57,6 @@ void apply_gravity_to_entity(Entity *e);
 Entity make_entity(Vector2 pos, Entity_kind kind);
 void update_entity(Entity *e);
 void draw_entity(Entity *e, bool debug);
+float entity_radius(Entity *e);
 
 #endif // ENTITY_H_

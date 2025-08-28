@@ -16,8 +16,10 @@
 Vector2 v2xx(float v);
 Vector2 v2(float x, float y);
 #define v2_sub Vector2Subtract
+#define v2_add Vector2Add
 #define v2_mag2 Vector2LengthSqr
 Vector2 v2_smooth_to(Vector2 v, Vector2 to, float delta);
+static inline float v2_dot(Vector2 a, Vector2 b){ return a.x*b.x + a.y*b.y; }
 
 // Vector2i
 typedef struct {
@@ -31,9 +33,13 @@ bool v2i_equal(Vector2i a, Vector2i b);
 bool rect_contains_point(Rectangle r1, Vector2 p);
 bool rect_contains_rect(Rectangle r1, Rectangle r2);
 bool rect_intersects_rect(Rectangle r1, Rectangle r2);
-// bool rect_resolve_rect_collision(Rectangle* rect1, const Rectangle rect2);
+bool rect_resolve_rect_collision(Rectangle* rect1, const Rectangle rect2);
 // void rect_get_3d_points(Rectangle rect, Vector3f* p0, Vector3f* p1, Vector3f* p2, Vector3f* p3);
 // void rect_get_points(Rectangle rect, Vector2* p0, Vector2* p1, Vector2* p2, Vector2* p3);
+
+// Collision
+bool coll_detect_circle_line_segment (Vector2 seg_a, Vector2 seg_b, Vector2 center, float radius, Vector2 *out_closest, float *out_penetration);
+bool coll_resolve_circle_line_segment(Vector2 seg_a, Vector2 seg_b, Vector2 *center, float radius);
 
 // Window
 RenderTexture2D init_window(int screen_width, int screen_height, float scl, const char *title, int *width_out, int *height_out);
@@ -274,6 +280,49 @@ bool rect_resolve_rect_collision(Rectangle* rect1, const Rectangle rect2) {
 //   *p3 = v2_add(rect.pos, (Vector2) {0.f, rect.size.y});
 // }
 //
+
+// Collision
+bool coll_detect_circle_line_segment(Vector2 seg_a, Vector2 seg_b, Vector2 center, float radius, Vector2 *out_closest, float *out_penetration) {
+    Vector2 ab = v2_sub(seg_b, seg_a);
+    Vector2 ac = v2_sub(center, seg_a);
+    float ab_len2 = Vector2LengthSqr(ab);
+
+    float t;
+    if (ab_len2 == 0.0f) {
+        // segment is a point
+        t = 0.0f;
+    } else {
+        t = v2_dot(ac, ab) / ab_len2;
+        if (t < 0.0f) t = 0.0f;
+        else if (t > 1.0f) t = 1.0f;
+    }
+
+    Vector2 closest = v2_add(seg_a, Vector2Scale(ab, t));
+    Vector2 diff = v2_sub(center, closest);
+    float dist = Vector2Length(diff);
+    if (out_closest) *out_closest = closest;
+
+    if (dist <= radius) {
+        if (out_penetration) *out_penetration = radius - dist;
+        return true;
+    } else {
+        if (out_penetration) *out_penetration = 0.0f;
+        return false;
+    }
+}
+
+bool coll_resolve_circle_line_segment(Vector2 seg_a, Vector2 seg_b, Vector2 *center, float radius) {
+    Vector2 c = {0};
+    float p = 0.f;
+    int collides = coll_detect_circle_line_segment(seg_a, seg_b, *center, radius, &c, &p);
+    if (!collides) return false;
+
+    Vector2 dir = Vector2Normalize(Vector2Subtract(c, *center));
+
+    *center = Vector2Subtract(c, Vector2Scale(dir, radius));
+
+    return true;
+}
 
 // Setup
 RenderTexture2D init_window(int screen_width, int screen_height, float scl, const char *title, int *width_out, int *height_out) {
