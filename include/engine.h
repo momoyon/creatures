@@ -17,6 +17,7 @@ Vector2 v2xx(float v);
 Vector2 v2(float x, float y);
 #define v2_sub Vector2Subtract
 #define v2_mag2 Vector2LengthSqr
+Vector2 v2_smooth_to(Vector2 v, Vector2 to, float delta);
 
 // Vector2i
 typedef struct {
@@ -168,6 +169,11 @@ bool on_alarm(Alarm *a, float dt);
 // Vector helpers
 Vector2 v2xx(float v) { return CLITERAL(Vector2) { v, v }; }
 Vector2 v2(float x, float y) { return CLITERAL(Vector2) { x, y }; }
+Vector2 v2_smooth_to(Vector2 v, Vector2 to, float delta) {
+    v.x += (to.x - v.x) * delta;
+    v.y += (to.y - v.y) * delta;
+    return v;
+}
 
 // Vector2i
 Vector2i v2vi(Vector2 v) { return CLITERAL(Vector2i) { (int)v.x, (int)v.y }; }

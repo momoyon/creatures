@@ -32,8 +32,23 @@ struct Entity {
 
     Entity_kind kind;
 
+    Segment head;
     Segment l_arm;
     Segment r_arm;
+
+    Vector2 target;
+
+    bool l_arm_moving_up;
+    bool r_arm_moving_up;
+
+    bool l_arm_flying;
+    bool r_arm_flying;
+
+    Vector2 l_up_pos;
+    Vector2 r_up_pos;
+
+    Vector2 l_flap_to_pos;
+    Vector2 r_flap_to_pos;
 };
 
 void physics_update_entity(Entity *e);

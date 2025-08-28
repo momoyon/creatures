@@ -100,6 +100,7 @@ int main(void)
     /// @DEBUG
     bool apply_force = false;
     bool apply_gravity = false;
+    bool follow_mouse = false;
     float mass = 1.f;
     float force_magnitude = 1.f;
     /// 
@@ -155,16 +156,32 @@ int main(void)
         }
         
         if (IsKeyPressed(KEY_ZERO)) cam.zoom = 1.f;
+
         
         // @DEBUG
         if (IsKeyPressed(KEY_SPACE)) {
-            Entity e = make_entity(m_world, EK_BASE);
+            Entity e = make_entity(m_world, edit_entity_kind);
             e.friction = 0.001f;
             e.mass = mass;
             darr_append(entities, e);
         }
         apply_force   = IsKeyDown(KEY_X);
-        apply_gravity = IsKeyDown(KEY_Z);
+        // apply_gravity = IsKeyDown(KEY_Z);
+        follow_mouse  = IsKeyDown(KEY_C);
+
+        // Mode-specific Input
+        switch (current_mode) {
+        case MODE_NORMAL: {
+        } break;
+        case MODE_EDIT: {
+            if (IsKeyPressed(KEY_K)) {
+                edit_entity_kind = (edit_entity_kind + 1) % EK_COUNT;
+            }
+        } break;
+        case MODE_COUNT:
+        default:
+            ASSERT(false, "UNREACHABLE!");
+        }
 
         BeginTextureMode(ren_tex);
         ClearBackground(BLACK);
@@ -182,12 +199,16 @@ int main(void)
                     Vector2 force = Vector2Scale(Vector2Normalize(Vector2Subtract(m_world, e->pos)), force_magnitude);
                     apply_force_to_entity(e, force);
                 }
+                
+                if (follow_mouse) {
+                    e->target = m_world;
+                }
 
                 e->affected_by_gravity = apply_gravity;
 
                 update_entity(e);
 
-                e->pos = warp_in_bounds(e->pos, bounds);
+                // e->pos = warp_in_bounds(e->pos, bounds);
             }
         } break;
         case MODE_EDIT: {
@@ -198,6 +219,13 @@ int main(void)
         }
 
         // Draw
+        BeginMode2D(cam);
+        for (size_t i = 0; i < entities.count; ++i) {
+            Entity *e = &entities.items[i];
+            draw_entity(e, debug_draw);
+        }
+        EndMode2D();
+
         int y = 0;
         DRAW_INFO(DEFAULT_FONT_SIZE, GOLD, "mode: %s", mode_as_str(current_mode));
         if (debug_draw) {
@@ -217,14 +245,11 @@ int main(void)
         // Mode-specific Draw
         switch (current_mode) {
             case MODE_NORMAL: {
-                BeginMode2D(cam);
-                for (size_t i = 0; i < entities.count; ++i) {
-                    Entity *e = &entities.items[i];
-                    draw_entity(e, debug_draw);
-                }
-                EndMode2D();
             } break;
             case MODE_EDIT: {
+                if (debug_draw) {
+                    DRAW_INFO(DEFAULT_FONT_SIZE, GOLD, "Kind: %s", entity_kind_as_str(edit_entity_kind));
+                }
             } break;
             case MODE_COUNT:
             default:
