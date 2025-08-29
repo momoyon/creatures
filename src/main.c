@@ -62,6 +62,20 @@ const char* mode_as_str(const Mode m)
     }
 }
 
+bool coll_resolve_bounds(Rectangle bounds, Vector2 *pos, float radius) {
+    Vector2 tl = v2(bounds.x, bounds.y);
+    Vector2 tr = v2(bounds.x + bounds.width, bounds.y);
+    Vector2 br = v2(bounds.x + bounds.width, bounds.y + bounds.height);
+    Vector2 bl = v2(bounds.x, bounds.y + bounds.height);
+    bool col = false;
+    col |= coll_resolve_circle_line_segment(tl, tr, pos, radius);
+    col |= coll_resolve_circle_line_segment(br, bl, pos, radius);
+    col |= coll_resolve_circle_line_segment(tl, bl, pos, radius);
+    col |= coll_resolve_circle_line_segment(tr, br, pos, radius);
+
+    return col;
+}
+
 int main(void)
 {
     int width = 0;
@@ -108,17 +122,15 @@ int main(void)
     float force_magnitude = 1.f;
     /// 
     
+    /// @DEBUG
+    Leg l = make_leg(v2xx(0), 30.f);
+    ///
     Rectangle bounds = {
         .x = -width*1.f,
         .y = -height*1.f,
         .width = width*2.f,
         .height = height*2.f,
     };
-
-    Vector2 tl = v2(bounds.x, bounds.y);
-    Vector2 tr = v2(bounds.x + bounds.width, bounds.y);
-    Vector2 br = v2(bounds.x + bounds.width, bounds.y + bounds.height);
-    Vector2 bl = v2(bounds.x, bounds.y + bounds.height);
 
     while (!quit && !WindowShouldClose()) {
         arena_reset(&temp_arena);
@@ -171,9 +183,11 @@ int main(void)
             mass -= GetFrameTime();
             if (mass <= 1.f) mass = 1.f;
         }
+
         if (IsKeyDown(KEY_TWO)) {
             mass += GetFrameTime();
         }
+
         if (IsKeyPressed(KEY_SPACE)) {
             Entity e = make_entity(m_world, edit_entity_kind);
             e.phy.friction = 0.001f;
@@ -201,6 +215,13 @@ int main(void)
         ClearBackground(BLACK);
 
         // Update
+
+        /// @DEBUG
+        l.start = m_world;
+        update_leg_end_to_start(&l);
+        l.end = v2xx(0);
+        update_leg_start_to_end(&l);
+        ///
         
         // Mode-specific Update
         switch (current_mode) {
@@ -219,14 +240,7 @@ int main(void)
                     e->target = m_world;
                 }
 
-                float radius = entity_radius(e);
-                bool col = false;
-                col |= coll_resolve_circle_line_segment(tl, tr, &e->phy.pos, radius);
-                col |= coll_resolve_circle_line_segment(br, bl, &e->phy.pos, radius);
-                col |= coll_resolve_circle_line_segment(tl, bl, &e->phy.pos, radius);
-                col |= coll_resolve_circle_line_segment(tr, br, &e->phy.pos, radius);
-
-                if (col) {
+                if (coll_resolve_bounds(bounds, &e->phy.pos, entity_radius(e))) {
                     e->phy.affected_by_gravity = false;
                     e->phy.vel = Vector2Scale(e->phy.vel, -0.25f);
                 }
@@ -238,16 +252,22 @@ int main(void)
 
             // Update spider
             spider.phy.affected_by_gravity = true;
-            float radius = entity_radius((Entity*)(&spider));
-            bool col = false;
-            col |= coll_resolve_circle_line_segment(tl, tr, &spider.phy.pos, radius);
-            col |= coll_resolve_circle_line_segment(br, bl, &spider.phy.pos, radius);
-            col |= coll_resolve_circle_line_segment(tl, bl, &spider.phy.pos, radius);
-            col |= coll_resolve_circle_line_segment(tr, br, &spider.phy.pos, radius);
+            spider.l_foot.affected_by_gravity = true;
+            spider.r_foot.affected_by_gravity = true;
 
-            if (col) {
+            if (coll_resolve_bounds(bounds, &spider.phy.pos, entity_radius((Entity *)&spider))) {
                 spider.phy.affected_by_gravity = false;
                 spider.phy.vel = Vector2Scale(spider.phy.vel, -0.25f);
+            }
+
+            if (coll_resolve_bounds(bounds, &spider.l_foot.pos, 2.f)) {
+                spider.l_foot.affected_by_gravity = false;
+                spider.l_foot.vel = Vector2Scale(spider.l_foot.vel, -0.25f);
+            }
+
+            if (coll_resolve_bounds(bounds, &spider.r_foot.pos, 2.f)) {
+                spider.r_foot.affected_by_gravity = false;
+                spider.r_foot.vel = Vector2Scale(spider.r_foot.vel, -0.25f);
             }
 
             update_spider(&spider);
@@ -262,7 +282,9 @@ int main(void)
 
         // Draw
         BeginMode2D(cam);
-        
+        /// @DEBUG
+        // draw_leg(&l, debug_draw);
+        ///
        
         // Draw entities
         for (size_t i = 0; i < entities.count; ++i) {

@@ -11,7 +11,8 @@ struct Leg {
 };
 
 Leg make_leg(Vector2 pos, float length);
-void update_leg(Leg *l);
+void update_leg_end_to_start(Leg *l);
+void update_leg_start_to_end(Leg *l);
 void draw_leg(Leg *l, bool debug);
 
 

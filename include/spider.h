@@ -17,6 +17,8 @@ struct Spider {
     Leg l_leg;
     Leg r_leg;
 
+    Physics_object l_foot;
+    Physics_object r_foot;
 };
 
 Spider make_spider(Vector2 pos);

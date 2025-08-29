@@ -12,7 +12,7 @@ Leg make_leg(Vector2 pos, float length) {
     return l;
 }
 
-void update_leg(Leg *l) {
+void update_leg_end_to_start(Leg *l) {
     Segment *one = &(l->segments[0]);
     Segment *two = &(l->segments[1]);
     Segment *thr = &(l->segments[2]);
@@ -27,6 +27,23 @@ void update_leg(Leg *l) {
     segment_end_to_start(thr);
 
     l->end = thr->end;
+}
+
+void update_leg_start_to_end(Leg *l) {
+    Segment *one = &(l->segments[0]);
+    Segment *two = &(l->segments[1]);
+    Segment *thr = &(l->segments[2]);
+
+    thr->end = l->end;
+    segment_start_to_end(thr);
+
+    two->end = thr->start;
+    segment_start_to_end(two);
+
+    one->end = two->start;
+    segment_start_to_end(one);
+
+    l->start = one->start;
 }
 
 void draw_leg(Leg *l, bool debug) {
