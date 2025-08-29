@@ -2,6 +2,7 @@
 #define ENTITY_H_
 
 #include <raylib.h>
+#include <physics_object.h>
 #include <segment.h>
 
 typedef struct Entity Entity;
@@ -19,14 +20,7 @@ enum Entity_kind {
 const char *entity_kind_as_str(Entity_kind ek);
 
 struct Entity {
-    Vector2 pos;
-    Vector2 vel;
-    Vector2 acc;
-    float friction;
-    float mass;
-    bool affected_by_gravity;
-
-    float max_speed;
+    Physics_object phy;
 
     bool dead;
 

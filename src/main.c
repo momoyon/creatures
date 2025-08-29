@@ -2,6 +2,9 @@
 #include <common.h>
 #include <entities.h>
 #include <segment.h>
+#include <leg.h>
+#include <spider.h>
+#include <physics_object.h>
 
 #define ENGINE_IMPLEMENTATION
 #include <engine.h>
@@ -93,24 +96,29 @@ int main(void)
     bool quit = false;
 
     Entities entities = {0};
+    Spider spider = make_spider(v2xx(0));
 
     // Edit
     Entity_kind edit_entity_kind = EK_BASE;
     
     /// @DEBUG
-    bool apply_force = false;
-    bool apply_gravity = true;
+    bool do_apply_force = false;
     bool follow_mouse = false;
     float mass = 1.f;
     float force_magnitude = 1.f;
     /// 
-
+    
     Rectangle bounds = {
         .x = -width*1.f,
         .y = -height*1.f,
         .width = width*2.f,
         .height = height*2.f,
     };
+
+    Vector2 tl = v2(bounds.x, bounds.y);
+    Vector2 tr = v2(bounds.x + bounds.width, bounds.y);
+    Vector2 br = v2(bounds.x + bounds.width, bounds.y + bounds.height);
+    Vector2 bl = v2(bounds.x, bounds.y + bounds.height);
 
     while (!quit && !WindowShouldClose()) {
         arena_reset(&temp_arena);
@@ -168,12 +176,11 @@ int main(void)
         }
         if (IsKeyPressed(KEY_SPACE)) {
             Entity e = make_entity(m_world, edit_entity_kind);
-            e.friction = 0.001f;
-            e.mass = mass;
+            e.phy.friction = 0.001f;
+            e.phy.mass = mass;
             darr_append(entities, e);
         }
-        apply_force   = IsKeyDown(KEY_X);
-        // apply_gravity = IsKeyDown(KEY_Z);
+        do_apply_force   = IsKeyDown(KEY_X);
         follow_mouse  = IsKeyDown(KEY_C);
         
         // Mode-specific Input
@@ -198,43 +205,53 @@ int main(void)
         // Mode-specific Update
         switch (current_mode) {
         case MODE_NORMAL: {
+            // Update entities 
             for (size_t i = 0; i < entities.count; ++i) {
                 Entity *e = &entities.items[i];
                 if (e->dead) continue;
 
-                if (apply_force) {
-                    Vector2 force = Vector2Scale(Vector2Normalize(Vector2Subtract(m_world, e->pos)), force_magnitude);
-                    apply_force_to_entity(e, force);
+                if (do_apply_force) {
+                    Vector2 force = Vector2Scale(Vector2Normalize(Vector2Subtract(m_world, e->phy.pos)), force_magnitude);
+                    apply_force(&e->phy, force);
                 }
                 
                 if (follow_mouse) {
                     e->target = m_world;
                 }
 
-                e->affected_by_gravity = apply_gravity;
-
-
-                Vector2 tl = v2(bounds.x, bounds.y);
-                Vector2 tr = v2(bounds.x + bounds.width, bounds.y);
-                Vector2 br = v2(bounds.x + bounds.width, bounds.y + bounds.height);
-                Vector2 bl = v2(bounds.x, bounds.y + bounds.height);
-
                 float radius = entity_radius(e);
                 bool col = false;
-                col |= coll_resolve_circle_line_segment(tl, tr, &e->pos, radius);
-                col |= coll_resolve_circle_line_segment(br, bl, &e->pos, radius);
-                col |= coll_resolve_circle_line_segment(tl, bl, &e->pos, radius);
-                col |= coll_resolve_circle_line_segment(tr, br, &e->pos, radius);
+                col |= coll_resolve_circle_line_segment(tl, tr, &e->phy.pos, radius);
+                col |= coll_resolve_circle_line_segment(br, bl, &e->phy.pos, radius);
+                col |= coll_resolve_circle_line_segment(tl, bl, &e->phy.pos, radius);
+                col |= coll_resolve_circle_line_segment(tr, br, &e->phy.pos, radius);
 
                 if (col) {
-                    e->affected_by_gravity = false;
-                    e->vel = Vector2Scale(e->vel, -0.25f);
+                    e->phy.affected_by_gravity = false;
+                    e->phy.vel = Vector2Scale(e->phy.vel, -0.25f);
                 }
 
                 update_entity(e);
                 
                 // e->pos = warp_in_bounds(e->pos, bounds);
             }
+
+            // Update spider
+            spider.phy.affected_by_gravity = true;
+            float radius = entity_radius((Entity*)(&spider));
+            bool col = false;
+            col |= coll_resolve_circle_line_segment(tl, tr, &spider.phy.pos, radius);
+            col |= coll_resolve_circle_line_segment(br, bl, &spider.phy.pos, radius);
+            col |= coll_resolve_circle_line_segment(tl, bl, &spider.phy.pos, radius);
+            col |= coll_resolve_circle_line_segment(tr, br, &spider.phy.pos, radius);
+
+            if (col) {
+                spider.phy.affected_by_gravity = false;
+                spider.phy.vel = Vector2Scale(spider.phy.vel, -0.25f);
+            }
+
+            update_spider(&spider);
+
         } break;
         case MODE_EDIT: {
         } break;
@@ -245,10 +262,17 @@ int main(void)
 
         // Draw
         BeginMode2D(cam);
+        
+       
+        // Draw entities
         for (size_t i = 0; i < entities.count; ++i) {
             Entity *e = &entities.items[i];
             draw_entity(e, debug_draw);
         }
+
+        // Draw Spider
+        draw_spider(&spider, debug_draw);
+
         EndMode2D();
 
         int y = 0;
@@ -256,8 +280,8 @@ int main(void)
         if (debug_draw) {
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "cam: %f, %f (x%f)", cam.target.x, cam.target.y, cam.zoom);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "m_world: %f, %f", m_world.x, m_world.y);
-            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply force: %s (%f)", apply_force ? "true" : "false", force_magnitude);
-            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply gravity: %s", apply_gravity ? "true" : "false");
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "spider: %f, %f", spider.phy.pos.x, spider.phy.pos.y);
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply force: %s (%f)", do_apply_force ? "true" : "false", force_magnitude);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "mass: %f", mass);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Entities count: %zu", entities.count);
 

@@ -16,51 +16,24 @@ const char *entity_kind_as_str(Entity_kind ek) {
     }
     return "YOU SHOULD NO BE ABLE TO SEE THIS!!!!!!";
 }
-void physics_update_entity(Entity *e) {
-    float dt = GetFrameTime();
-    float scaled_mass = e->mass * 0.001f;
-
-    // If gravity flag set, add gravity as a force (Fg = m * g)
-    if (e->affected_by_gravity) {
-        e->acc = Vector2Add(e->acc, Vector2Scale(gravity(), scaled_mass));
-        e->affected_by_gravity = false;
-    }
-
-    // Convert net force to acceleration: a = F / m (handle zero mass)
-    Vector2 acceleration = (scaled_mass != 0.0f) ? Vector2Scale(e->acc, 1.0f / scaled_mass) : e->acc;
-
-    e->vel = Vector2Add(e->vel, Vector2Scale(acceleration, dt));
-    e->pos = Vector2Add(e->pos, Vector2Scale(e->vel, dt));
-
-    e->acc = Vector2Zero();
-
-    // Friction
-    e->vel = Vector2Scale(e->vel, 1.0f - e->friction);
-
-}
-
-void apply_force_to_entity(Entity *e, Vector2 force) {
-    e->acc = Vector2Add(e->acc, force);
-}
 
 Entity make_entity(Vector2 pos, Entity_kind kind) {
     Entity e = {
-        .pos = pos,
         .kind = kind,
-        .max_speed = ENTITY_DEFAULT_MAX_SPEED,
     };
+    e.phy.pos = pos;
 
     switch (e.kind) {
         case EK_BASE: {
-            e.mass = 1.f;
+            e.phy.mass = 1.f;
         } break;
         case EK_BAT: {
             e.head.length = 10.f;
-            e.head.start = e.pos;
+            e.head.start = e.phy.pos;
             e.l_arm.length = 24.f;
             e.r_arm.length = 24.f;
-            e.l_arm.start = e.pos;
-            e.r_arm.start = e.pos;
+            e.l_arm.start = e.phy.pos;
+            e.r_arm.start = e.phy.pos;
             e.l_arm_flying = true;
         } break;
         case EK_COUNT:
@@ -76,9 +49,9 @@ void update_entity(Entity *e) {
             
         } break;
         case EK_BAT: {
-            e->l_arm.start = e->pos;
-            e->r_arm.start = e->pos;
-            e->head.start = e->pos;
+            e->l_arm.start = e->phy.pos;
+            e->r_arm.start = e->phy.pos;
+            e->head.start = e->phy.pos;
 
             e->head.end = e->target;
             segment_end_to_start(&e->head);
@@ -98,7 +71,7 @@ void update_entity(Entity *e) {
             Vector2 head = Vector2Subtract(e->head.end, e->head.start);
             Vector2 normal_of_head = v2(head.y, -head.x);
             e->l_up_pos = Vector2Add(e->head.end, Vector2Scale(Vector2Normalize(normal_of_head), e->l_arm.length));
-            e->l_flap_to_pos = Vector2Add(e->pos, Vector2Scale(Vector2Normalize(normal_of_head), e->l_arm.length));
+            e->l_flap_to_pos = Vector2Add(e->phy.pos, Vector2Scale(Vector2Normalize(normal_of_head), e->l_arm.length));
 
             if (e->l_arm_flying) {
                 // 1. Move arm up
@@ -119,8 +92,8 @@ void update_entity(Entity *e) {
                         e->l_arm_flying = false;
                         e->r_arm_flying = true;
 
-                        Vector2 l_arm_flap_force = Vector2Rotate(Vector2Subtract(e->l_flap_to_pos, e->pos), DEG2RAD*45.f);
-                        apply_force_to_entity(e, l_arm_flap_force);
+                        Vector2 l_arm_flap_force = Vector2Rotate(Vector2Subtract(e->l_flap_to_pos, e->phy.pos), DEG2RAD*45.f);
+                        apply_force(&e->phy, l_arm_flap_force);
                     }
                     // log_info("L MOVING DOWN: %f", dist_to_up_flap_pos_sqr);
                 }
@@ -128,7 +101,7 @@ void update_entity(Entity *e) {
 
             normal_of_head = v2(-head.y, head.x);
             e->r_up_pos = Vector2Add(e->head.end, Vector2Scale(Vector2Normalize(normal_of_head), e->r_arm.length));
-            e->r_flap_to_pos = Vector2Add(e->pos, Vector2Scale(Vector2Normalize(normal_of_head), e->r_arm.length));
+            e->r_flap_to_pos = Vector2Add(e->phy.pos, Vector2Scale(Vector2Normalize(normal_of_head), e->r_arm.length));
 
             if (e->r_arm_flying) {
                 // 1. Move arm up
@@ -149,8 +122,8 @@ void update_entity(Entity *e) {
                         e->r_arm_flying = false;
                         e->l_arm_flying = true;
 
-                        Vector2 r_arm_flap_force = Vector2Rotate(Vector2Subtract(e->r_flap_to_pos, e->pos), -DEG2RAD*45.f);
-                        apply_force_to_entity(e, r_arm_flap_force);
+                        Vector2 r_arm_flap_force = Vector2Rotate(Vector2Subtract(e->r_flap_to_pos, e->phy.pos), -DEG2RAD*45.f);
+                        apply_force(&e->phy, r_arm_flap_force);
                     }
                     // log_info("R MOVING DOWN: %f", dist_to_up_flap_pos_sqr);
                 }
@@ -160,22 +133,22 @@ void update_entity(Entity *e) {
 
 
             // Always follow the target
-            // Vector2 force = Vector2Scale(Vector2Normalize(Vector2Subtract(e->target, e->pos)), 1.f);
+            // Vector2 force = Vector2Scale(Vector2Normalize(Vector2Subtract(e->target, e->phy.pos)), 1.f);
             // apply_force_to_entity(e, force);
         } break;
         case EK_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
     }
 
-    physics_update_entity(e);
+    update_physics_object(&e->phy);
 
 }
 
 void draw_entity(Entity *e, bool debug) {
-    DrawCircleV(e->pos, entity_radius(e), ColorFromHSV(e->mass * 100.f, 1.f, 1.f));
+    DrawCircleV(e->phy.pos, entity_radius(e), ColorFromHSV(e->phy.mass * 100.f, 1.f, 1.f));
     if (debug) {
-        Vector2 vel_line_end = Vector2Add(e->pos, e->vel);
-        DrawLineV(e->pos, vel_line_end, BLUE);
+        Vector2 vel_line_end = Vector2Add(e->phy.pos, e->phy.vel);
+        DrawLineV(e->phy.pos, vel_line_end, BLUE);
     }
 
     switch (e->kind) {
@@ -202,5 +175,5 @@ void draw_entity(Entity *e, bool debug) {
 }
 
 float entity_radius(Entity *e) {
-    return (e->mass*1.5f) + 8.f;
+    return (e->phy.mass*1.5f) + 8.f;
 }
