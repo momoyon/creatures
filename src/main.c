@@ -5,6 +5,7 @@
 #include <leg.h>
 #include <spider.h>
 #include <physics_object.h>
+#include <surfaces.h>
 
 #define ENGINE_IMPLEMENTATION
 #include <engine.h>
@@ -62,18 +63,33 @@ const char* mode_as_str(const Mode m)
     }
 }
 
-bool coll_resolve_bounds(Rectangle bounds, Vector2 *pos, float radius) {
+void add_bound_as_surfaces(Rectangle bounds, Surfaces *surfaces) {
     Vector2 tl = v2(bounds.x, bounds.y);
     Vector2 tr = v2(bounds.x + bounds.width, bounds.y);
     Vector2 br = v2(bounds.x + bounds.width, bounds.y + bounds.height);
     Vector2 bl = v2(bounds.x, bounds.y + bounds.height);
-    bool col = false;
-    col |= coll_resolve_circle_line_segment(tl, tr, pos, radius);
-    col |= coll_resolve_circle_line_segment(br, bl, pos, radius);
-    col |= coll_resolve_circle_line_segment(tl, bl, pos, radius);
-    col |= coll_resolve_circle_line_segment(tr, br, pos, radius);
 
-    return col;
+    Surface s = {0};
+
+    // Left
+    s.start = bl;
+    s.end = tl;
+    darr_append(*surfaces, s);
+
+    // Top
+    s.start = tl;
+    s.end = tr;
+    darr_append(*surfaces, s);
+    
+    // Right
+    s.start = tr;
+    s.end = br;
+    darr_append(*surfaces, s);
+    
+    // Bottom
+    s.start = br;
+    s.end = bl;
+    darr_append(*surfaces, s);
 }
 
 int main(void)
@@ -132,6 +148,11 @@ int main(void)
         .height = height*2.f,
     };
 
+
+    Surfaces surfaces = {0};
+
+    add_bound_as_surfaces(bounds, &surfaces);
+
     while (!quit && !WindowShouldClose()) {
         arena_reset(&temp_arena);
         const char* title_str = arena_alloc_str(temp_arena, "%s | %d FPS", window_name, GetFPS());
@@ -176,7 +197,6 @@ int main(void)
         }
         
         if (IsKeyPressed(KEY_ZERO)) cam.zoom = 1.f;
-
 
         // @DEBUG
         if (IsKeyDown(KEY_ONE)) {
@@ -240,10 +260,15 @@ int main(void)
                     e->target = m_world;
                 }
 
-                if (coll_resolve_bounds(bounds, &e->phy.pos, entity_radius(e))) {
-                    e->phy.affected_by_gravity = false;
-                    e->phy.vel = Vector2Scale(e->phy.vel, -0.25f);
+                for (int si = 0; si < surfaces.count; si++) {
+                    Surface *surf = &surfaces.items[si];
+
+
                 }
+                // if (coll_resolve_bounds(bounds, &e->phy.pos, entity_radius(e))) {
+                //     e->phy.affected_by_gravity = false;
+                //     e->phy.vel = Vector2Scale(e->phy.vel, -0.25f);
+                // }
 
                 update_entity(e);
                 
@@ -286,6 +311,12 @@ int main(void)
         // draw_leg(&l, debug_draw);
         ///
        
+        // Draw Surfaces
+        for (size_t i = 0; i < surfaces.count; ++i) {
+            Surface *surf = &surfaces.items[i];
+            draw_surface(surf, debug_draw);
+        }
+        
         // Draw entities
         for (size_t i = 0; i < entities.count; ++i) {
             Entity *e = &entities.items[i];
@@ -308,7 +339,7 @@ int main(void)
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Entities count: %zu", entities.count);
 
             BeginMode2D(cam);
-            DrawRectangleLinesEx(bounds, 1.f, WHITE);
+            // DrawRectangleLinesEx(bounds, 1.f, WHITE);
 
             EndMode2D();
         }
