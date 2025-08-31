@@ -20,5 +20,6 @@ struct Surface {
 };
 
 void draw_surface(Surface *s, bool debug);
+bool surface_resolve_with_physics_object(Surface *s, Physics_object phy);
 
 #endif // SURFACE_H_

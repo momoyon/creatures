@@ -110,7 +110,6 @@ int main(void)
         &width, &height);
     SetExitKey(0);
 
-            
     // Font font = GetFontDefault();
     //
     Mode last_mode = MODE_NORMAL;
@@ -142,10 +141,7 @@ int main(void)
     /// 
     
     /// @DEBUG
-    Segment s = {
-        .start = v2xx(0.f),
-        .end = v2(0.f, 10.f)
-    };
+    Surface s = {0};
     ///
 
     Rectangle bounds = {
@@ -226,7 +222,15 @@ int main(void)
         ///
 
         /// @DEBUG
-        // if (IsKeyPressed(KEY_V)) s.end = m_world;
+        if (IsKeyDown(KEY_T)) {
+            s.start = m_world;
+        }
+        if (IsKeyDown(KEY_Y)) {
+            s.end = m_world;
+        }
+        if (IsKeyPressed(KEY_SIX)) {
+            darr_append(surfaces, s);
+        }
         ///
 
         // Mode-specific Input
@@ -265,12 +269,15 @@ int main(void)
                     e->target = m_world;
                 }
 
+                float radius = entity_radius(e);
+                // Collision with surfaces
                 for (int si = 0; si < surfaces.count; si++) {
                     Surface *surf = &surfaces.items[si];
 
                     Vector2 diff = Vector2Subtract(surf->end, surf->start);
                     Vector2 normal = Vector2Normalize(v2(-diff.y, diff.x));
-                    bool was_on_left = point_is_on_left_of_line(surf->start, surf->end, e->phy.pos);
+                    float D = signed_2d_cross_point_line(surf->start, surf->end, e->phy.pos);
+                    bool was_on_left = D > radius;
 
                     if (!was_on_left) {
                         normal.x = diff.y;
@@ -279,13 +286,18 @@ int main(void)
 
                     Physics_object next_phy = e->phy;
                     update_physics_object(&next_phy);
-                    bool will_be_on_left = point_is_on_left_of_line(surf->start, surf->end, next_phy.pos);
-                    if (was_on_left != will_be_on_left) {
-                        Vector2 reflect_force = Vector2Reflect(Vector2Normalize(e->phy.vel), normal);
-                        float vel_mag = Vector2Length(e->phy.vel);
-                        e->phy.vel = Vector2Scale(Vector2Normalize(reflect_force), vel_mag * 0.9f);
 
-                        // log_debug("Reflect force: %f, %f vs Velocity: %f, %f", reflect_force.x, reflect_force.y, e->phy.vel.x, e->phy.vel.y);
+                    if (coll_detect_circle_line_segment(surf->start, surf->end, next_phy.pos, radius, NULL, NULL)) {
+                        D = signed_2d_cross_point_line(surf->start, surf->end, next_phy.pos);
+                        bool will_be_on_left = D < -radius;
+
+                        if (was_on_left != will_be_on_left) {
+                            Vector2 reflect_force = Vector2Reflect(Vector2Normalize(e->phy.vel), normal);
+                            float vel_mag = Vector2Length(e->phy.vel);
+                            e->phy.vel = Vector2Scale(Vector2Normalize(reflect_force), vel_mag * 0.9f);
+
+                            // log_debug("Reflect force: %f, %f vs Velocity: %f, %f", reflect_force.x, reflect_force.y, e->phy.vel.x, e->phy.vel.y);
+                        }
                     }
 
                 }
@@ -333,11 +345,7 @@ int main(void)
         BeginMode2D(cam);
 
         /// @DEBUG
-        // draw_segment(&s, debug_draw);
-        // Color _c = RED;
-        // if (point_is_on_left_of_line(s.start, s.end, m_world)) _c = BLUE;
-        //
-        // DrawCircleV(m_world, 2.f, _c);
+        draw_surface(&s, debug_draw);
         ///
        
         // Draw Surfaces

@@ -42,6 +42,7 @@ bool coll_detect_circle_line_segment (Vector2 seg_a, Vector2 seg_b, Vector2 cent
 bool coll_resolve_circle_line_segment(Vector2 seg_a, Vector2 seg_b, Vector2 *center, float radius);
 
 // Math
+float signed_2d_cross_point_line(Vector2 line_start, Vector2 line_end, Vector2 point);
 bool point_is_on_left_of_line(Vector2 line_start, Vector2 line_end, Vector2 point);
 
 // Window
@@ -328,9 +329,13 @@ bool coll_resolve_circle_line_segment(Vector2 seg_a, Vector2 seg_b, Vector2 *cen
 }
 
 // Math
+float signed_2d_cross_point_line(Vector2 line_start, Vector2 line_end, Vector2 point) {
+   return (line_end.x - line_start.x)*(point.y - line_start.y) - (line_end.y - line_start.y)*(point.x - line_start.x);
+}
+
 bool point_is_on_left_of_line(Vector2 line_start, Vector2 line_end, Vector2 point) {
-    float D = (line_end.x - line_start.x)*(point.y - line_start.y) - (line_end.y - line_start.y)*(point.x - line_start.x);
-    return D > 0.f;
+
+    return signed_2d_cross_point_line(line_start, line_end, point) < 0;
 }
 
 // Setup
