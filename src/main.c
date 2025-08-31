@@ -103,11 +103,14 @@ int main(void)
     bool debug_draw = false;
 #endif // defined(DEBUG)
 
+    SetConfigFlags(FLAG_VSYNC_HINT);
+
     const char* window_name = "Creatures";
     RenderTexture2D ren_tex = init_window(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_SCALE, window_name,
         &width, &height);
     SetExitKey(0);
 
+            
     // Font font = GetFontDefault();
     //
     Mode last_mode = MODE_NORMAL;
@@ -139,8 +142,12 @@ int main(void)
     /// 
     
     /// @DEBUG
-    Leg l = make_leg(v2xx(0), 30.f);
+    Segment s = {
+        .start = v2xx(0.f),
+        .end = v2(0.f, 10.f)
+    };
     ///
+
     Rectangle bounds = {
         .x = -width*1.f,
         .y = -height*1.f,
@@ -198,7 +205,7 @@ int main(void)
         
         if (IsKeyPressed(KEY_ZERO)) cam.zoom = 1.f;
 
-        // @DEBUG
+        /// @DEBUG
         if (IsKeyDown(KEY_ONE)) {
             mass -= GetFrameTime();
             if (mass <= 1.f) mass = 1.f;
@@ -216,7 +223,12 @@ int main(void)
         }
         do_apply_force   = IsKeyDown(KEY_X);
         follow_mouse  = IsKeyDown(KEY_C);
-        
+        ///
+
+        /// @DEBUG
+        // if (IsKeyPressed(KEY_V)) s.end = m_world;
+        ///
+
         // Mode-specific Input
         switch (current_mode) {
         case MODE_NORMAL: {
@@ -236,13 +248,6 @@ int main(void)
 
         // Update
 
-        /// @DEBUG
-        l.start = m_world;
-        update_leg_end_to_start(&l);
-        l.end = v2xx(0);
-        update_leg_start_to_end(&l);
-        ///
-        
         // Mode-specific Update
         switch (current_mode) {
         case MODE_NORMAL: {
@@ -263,6 +268,25 @@ int main(void)
                 for (int si = 0; si < surfaces.count; si++) {
                     Surface *surf = &surfaces.items[si];
 
+                    Vector2 diff = Vector2Subtract(surf->end, surf->start);
+                    Vector2 normal = Vector2Normalize(v2(-diff.y, diff.x));
+                    bool was_on_left = point_is_on_left_of_line(surf->start, surf->end, e->phy.pos);
+
+                    if (!was_on_left) {
+                        normal.x = diff.y;
+                        normal.y = -diff.x;
+                    }
+
+                    Physics_object next_phy = e->phy;
+                    update_physics_object(&next_phy);
+                    bool will_be_on_left = point_is_on_left_of_line(surf->start, surf->end, next_phy.pos);
+                    if (was_on_left != will_be_on_left) {
+                        Vector2 reflect_force = Vector2Reflect(Vector2Normalize(e->phy.vel), normal);
+                        float vel_mag = Vector2Length(e->phy.vel);
+                        e->phy.vel = Vector2Scale(Vector2Normalize(reflect_force), vel_mag * 0.9f);
+
+                        // log_debug("Reflect force: %f, %f vs Velocity: %f, %f", reflect_force.x, reflect_force.y, e->phy.vel.x, e->phy.vel.y);
+                    }
 
                 }
                 // if (coll_resolve_bounds(bounds, &e->phy.pos, entity_radius(e))) {
@@ -280,20 +304,20 @@ int main(void)
             spider.l_foot.affected_by_gravity = true;
             spider.r_foot.affected_by_gravity = true;
 
-            if (coll_resolve_bounds(bounds, &spider.phy.pos, entity_radius((Entity *)&spider))) {
-                spider.phy.affected_by_gravity = false;
-                spider.phy.vel = Vector2Scale(spider.phy.vel, -0.25f);
-            }
+            // if (coll_resolve_bounds(bounds, &spider.phy.pos, entity_radius((Entity *)&spider))) {
+            //     spider.phy.affected_by_gravity = false;
+            //     spider.phy.vel = Vector2Scale(spider.phy.vel, -0.25f);
+            // }
 
-            if (coll_resolve_bounds(bounds, &spider.l_foot.pos, 2.f)) {
-                spider.l_foot.affected_by_gravity = false;
-                spider.l_foot.vel = Vector2Scale(spider.l_foot.vel, -0.25f);
-            }
+            // if (coll_resolve_bounds(bounds, &spider.l_foot.pos, 2.f)) {
+            //     spider.l_foot.affected_by_gravity = false;
+            //     spider.l_foot.vel = Vector2Scale(spider.l_foot.vel, -0.25f);
+            // }
 
-            if (coll_resolve_bounds(bounds, &spider.r_foot.pos, 2.f)) {
-                spider.r_foot.affected_by_gravity = false;
-                spider.r_foot.vel = Vector2Scale(spider.r_foot.vel, -0.25f);
-            }
+            // if (coll_resolve_bounds(bounds, &spider.r_foot.pos, 2.f)) {
+            //     spider.r_foot.affected_by_gravity = false;
+            //     spider.r_foot.vel = Vector2Scale(spider.r_foot.vel, -0.25f);
+            // }
 
             update_spider(&spider);
 
@@ -307,8 +331,13 @@ int main(void)
 
         // Draw
         BeginMode2D(cam);
+
         /// @DEBUG
-        // draw_leg(&l, debug_draw);
+        // draw_segment(&s, debug_draw);
+        // Color _c = RED;
+        // if (point_is_on_left_of_line(s.start, s.end, m_world)) _c = BLUE;
+        //
+        // DrawCircleV(m_world, 2.f, _c);
         ///
        
         // Draw Surfaces

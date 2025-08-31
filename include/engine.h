@@ -41,6 +41,9 @@ bool rect_resolve_rect_collision(Rectangle* rect1, const Rectangle rect2);
 bool coll_detect_circle_line_segment (Vector2 seg_a, Vector2 seg_b, Vector2 center, float radius, Vector2 *out_closest, float *out_penetration);
 bool coll_resolve_circle_line_segment(Vector2 seg_a, Vector2 seg_b, Vector2 *center, float radius);
 
+// Math
+bool point_is_on_left_of_line(Vector2 line_start, Vector2 line_end, Vector2 point);
+
 // Window
 RenderTexture2D init_window(int screen_width, int screen_height, float scl, const char *title, int *width_out, int *height_out);
 void close_window(RenderTexture2D ren_tex);
@@ -322,6 +325,12 @@ bool coll_resolve_circle_line_segment(Vector2 seg_a, Vector2 seg_b, Vector2 *cen
     *center = Vector2Subtract(c, Vector2Scale(dir, radius));
 
     return true;
+}
+
+// Math
+bool point_is_on_left_of_line(Vector2 line_start, Vector2 line_end, Vector2 point) {
+    float D = (line_end.x - line_start.x)*(point.y - line_start.y) - (line_end.y - line_start.y)*(point.x - line_start.x);
+    return D > 0.f;
 }
 
 // Setup
