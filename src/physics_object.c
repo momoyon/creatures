@@ -27,3 +27,7 @@ void update_physics_object(Physics_object *e) {
 void apply_force(Physics_object *p, Vector2 force) {
     p->acc = Vector2Add(p->acc, force);
 }
+
+float get_radius(Physics_object *p) {
+    return (p->mass*1.5f) + 8.f;
+}

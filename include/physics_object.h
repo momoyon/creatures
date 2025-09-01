@@ -16,5 +16,6 @@ struct Physics_object {
 
 void update_physics_object(Physics_object *p);
 void apply_force(Physics_object *p, Vector2 force);
+float get_radius(Physics_object *p);
 
 #endif // PHYSICS_OBJECT_H_

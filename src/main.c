@@ -269,7 +269,7 @@ int main(void)
                     e->target = m_world;
                 }
 
-                float radius = entity_radius(e);
+                float radius = get_radius(&e->phy);
                 // Collision with surfaces
                 for (int si = 0; si < surfaces.count; si++) {
                     Surface *surf = &surfaces.items[si];
@@ -301,7 +301,7 @@ int main(void)
                     }
 
                 }
-                // if (coll_resolve_bounds(bounds, &e->phy.pos, entity_radius(e))) {
+                // if (coll_resolve_bounds(bounds, &e->phy.pos, get_radius(e))) {
                 //     e->phy.affected_by_gravity = false;
                 //     e->phy.vel = Vector2Scale(e->phy.vel, -0.25f);
                 // }
@@ -316,7 +316,7 @@ int main(void)
             spider.l_foot.affected_by_gravity = true;
             spider.r_foot.affected_by_gravity = true;
 
-            // if (coll_resolve_bounds(bounds, &spider.phy.pos, entity_radius((Entity *)&spider))) {
+            // if (coll_resolve_bounds(bounds, &spider.phy.pos, get_radius((Entity *)&spider))) {
             //     spider.phy.affected_by_gravity = false;
             //     spider.phy.vel = Vector2Scale(spider.phy.vel, -0.25f);
             // }
