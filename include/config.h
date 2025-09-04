@@ -5,5 +5,6 @@
 #define DEFAULT_FONT_SIZE 10
 #define GRAVITY_FORCE 98.f
 #define SPIDER_SPEED 1.f
+#define SUB_FRAMES_COUNT 10
 
 #endif // CONFIG_H_

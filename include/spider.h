@@ -10,7 +10,7 @@ typedef struct Spider Spider;
 struct Spider {
     Physics_object phy;
 
-    float max_speed;
+    float speed;
 
     bool dead;
 
@@ -19,13 +19,19 @@ struct Spider {
 
     Physics_object l_foot;
     Physics_object r_foot;
+
+    Vector2 l_foot_target;
+    Vector2 r_foot_target;
+
+    Vector2 target;
+
+    float stand_height;
 };
 
 Spider make_spider(Vector2 pos);
 void draw_spider(Spider *s, bool debug);
 
-void update_spider(Spider *s);
-
-void control_spider(Spider *s);
+void update_spider(Spider *s, float dt);
+void control_spider(Spider *s, float dt);
 
 #endif // SPIDER_H_

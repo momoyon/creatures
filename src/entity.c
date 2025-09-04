@@ -35,6 +35,7 @@ Entity make_entity(Vector2 pos, Entity_kind kind) {
             e.l_arm.start = e.phy.pos;
             e.r_arm.start = e.phy.pos;
             e.l_arm_flying = true;
+            e.flap_radius = 15.f;
         } break;
         case EK_COUNT:
         default: ASSERT(false, "UNREACHABLE!");
@@ -43,7 +44,7 @@ Entity make_entity(Vector2 pos, Entity_kind kind) {
     return e;
 }
 
-void update_entity(Entity *e) {
+void update_entity(Entity *e, float dt) {
     switch (e->kind) {
         case EK_BASE: {
             
@@ -56,22 +57,14 @@ void update_entity(Entity *e) {
             e->head.end = e->target;
             segment_end_to_start(&e->head);
 
-            // Both arms cant be moving up at the same time
-            if (e->l_arm_moving_up && e->r_arm_moving_up) {
-                e->r_arm_moving_up = false;
-            }
-            //
-            // // Start moving left arm up if none is
-            // if (!e->l_arm_moving_up && !e->r_arm_moving_up) {
-            //     e->l_arm_moving_up = true;
-            // }
-
-
             // Fly
             Vector2 head = Vector2Subtract(e->head.end, e->head.start);
             Vector2 normal_of_head = v2(head.y, -head.x);
             e->l_up_pos = Vector2Add(e->head.end, Vector2Scale(Vector2Normalize(normal_of_head), e->l_arm.length));
-            e->l_flap_to_pos = Vector2Add(e->phy.pos, Vector2Scale(Vector2Normalize(normal_of_head), e->l_arm.length));
+            e->l_flap_to_pos = Vector2Add(e->phy.pos, Vector2Rotate(Vector2Scale(Vector2Normalize(normal_of_head), e->r_arm.length), DEG2RAD*-e->flap_radius));
+
+            e->l_arm_flying = true;
+            e->r_arm_flying = true;
 
             if (e->l_arm_flying) {
                 // 1. Move arm up
@@ -88,12 +81,17 @@ void update_entity(Entity *e) {
 
                     float dist_to_up_flap_pos_sqr = Vector2LengthSqr(Vector2Subtract(e->l_arm.end, e->l_flap_to_pos));
                     if (dist_to_up_flap_pos_sqr <= 1.5f) {
-                        e->r_arm_moving_up = true;
                         e->l_arm_flying = false;
-                        e->r_arm_flying = true;
+                        e->l_arm_moving_up = true;
 
                         Vector2 l_arm_flap_force = Vector2Rotate(Vector2Subtract(e->l_flap_to_pos, e->phy.pos), DEG2RAD*45.f);
-                        apply_force(&e->phy, l_arm_flap_force);
+                        float flap_force_mag = e->phy.mass * 2.f;
+
+                        float dist_to_target_sqr = Vector2Length(Vector2Subtract(e->target, e->phy.pos));
+                        if (dist_to_target_sqr <= 100.f) {
+                            flap_force_mag *= 0.75f;
+                        }
+                        apply_force(&e->phy, Vector2Scale(l_arm_flap_force, flap_force_mag));
                     }
                     // log_info("L MOVING DOWN: %f", dist_to_up_flap_pos_sqr);
                 }
@@ -101,7 +99,7 @@ void update_entity(Entity *e) {
 
             normal_of_head = v2(-head.y, head.x);
             e->r_up_pos = Vector2Add(e->head.end, Vector2Scale(Vector2Normalize(normal_of_head), e->r_arm.length));
-            e->r_flap_to_pos = Vector2Add(e->phy.pos, Vector2Scale(Vector2Normalize(normal_of_head), e->r_arm.length));
+            e->r_flap_to_pos = Vector2Add(e->phy.pos, Vector2Rotate(Vector2Scale(Vector2Normalize(normal_of_head), e->r_arm.length), DEG2RAD*e->flap_radius));
 
             if (e->r_arm_flying) {
                 // 1. Move arm up
@@ -118,12 +116,18 @@ void update_entity(Entity *e) {
 
                     float dist_to_up_flap_pos_sqr = Vector2LengthSqr(Vector2Subtract(e->r_arm.end, e->r_flap_to_pos));
                     if (dist_to_up_flap_pos_sqr <= 1.5f) {
-                        e->l_arm_moving_up = true;
                         e->r_arm_flying = false;
-                        e->l_arm_flying = true;
+                        e->r_arm_moving_up = true;
 
                         Vector2 r_arm_flap_force = Vector2Rotate(Vector2Subtract(e->r_flap_to_pos, e->phy.pos), -DEG2RAD*45.f);
-                        apply_force(&e->phy, r_arm_flap_force);
+                        float flap_force_mag = e->phy.mass * 2.f;
+
+                        float dist_to_target_sqr = Vector2Length(Vector2Subtract(e->target, e->phy.pos));
+                        if (dist_to_target_sqr <= 100.f) {
+                            flap_force_mag *= 0.75f;
+                        }
+
+                        apply_force(&e->phy, Vector2Scale(r_arm_flap_force, flap_force_mag));
                     }
                     // log_info("R MOVING DOWN: %f", dist_to_up_flap_pos_sqr);
                 }
@@ -140,8 +144,7 @@ void update_entity(Entity *e) {
         default: ASSERT(false, "UNREACHABLE!");
     }
 
-    update_physics_object(&e->phy);
-
+    update_physics_object(&e->phy, dt);
 }
 
 void draw_entity(Entity *e, bool debug) {

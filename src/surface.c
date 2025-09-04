@@ -12,7 +12,8 @@ void draw_surface(Surface *s, bool debug) {
     }
 }
 
-bool surface_resolve_with_physics_object(Surface *s, Physics_object *phy) {
+bool surface_resolve_with_physics_object(Surface *s, Physics_object *phy, float dt) {
+    phy->collided_this_frame = false;
     Vector2 diff = Vector2Subtract(s->end, s->start);
 
     Vector2 normal = Vector2Normalize(v2(-diff.y, diff.x));
@@ -26,18 +27,21 @@ bool surface_resolve_with_physics_object(Surface *s, Physics_object *phy) {
     }
 
     Physics_object next_phy = *phy;
-    update_physics_object(&next_phy);
+    update_physics_object(&next_phy, dt);
 
-    if (coll_detect_circle_line_segment(s->start, s->end, next_phy.pos, radius, NULL, NULL)) {
+    Vector2 collision_point = {0};
+    if (coll_detect_circle_line_segment(s->start, s->end, next_phy.pos, radius, &collision_point, NULL)) {
         D = signed_2d_cross_point_line(s->start, s->end, next_phy.pos);
         bool will_be_on_left = D < -radius;
 
         if (was_on_left != will_be_on_left) {
             Vector2 reflect_force = Vector2Reflect(Vector2Normalize(phy->vel), normal);
             float vel_mag = Vector2Length(phy->vel);
-            phy->vel = Vector2Scale(Vector2Normalize(reflect_force), vel_mag * 0.9f);
+            phy->pos = Vector2Subtract(collision_point, Vector2Scale(Vector2Normalize(Vector2Subtract(collision_point, phy->pos)), radius));
+            phy->vel = Vector2Scale(Vector2Normalize(reflect_force), vel_mag * phy->elasticity);
 
             // log_debug("Reflect force: %f, %f vs Velocity: %f, %f", reflect_force.x, reflect_force.y, e->phy.vel.x, e->phy.vel.y);
+            phy->collided_this_frame = true;
             return true;
         }
     }

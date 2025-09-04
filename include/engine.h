@@ -20,6 +20,7 @@ Vector2 v2(float x, float y);
 #define v2_mag2 Vector2LengthSqr
 Vector2 v2_smooth_to(Vector2 v, Vector2 to, float delta);
 static inline float v2_dot(Vector2 a, Vector2 b){ return a.x*b.x + a.y*b.y; }
+Vector2 v2_parabolic_lerp(Vector2 start, Vector2 end, float t, float height, Vector2 up);
 
 // Vector2i
 typedef struct {
@@ -183,6 +184,17 @@ Vector2 v2_smooth_to(Vector2 v, Vector2 to, float delta) {
     v.x += (to.x - v.x) * delta;
     v.y += (to.y - v.y) * delta;
     return v;
+}
+
+Vector2 v2_parabolic_lerp(Vector2 start, Vector2 end, float t, float height, Vector2 up) {
+
+    Vector2 base = Vector2Lerp(start, end, t);
+    float parabola = t * (1.0f - t); // 0 at t=0 and t=1, 1 at t=0.5
+    Vector2 res = {0};
+    res.x = base.x + up.x * (height * parabola);
+    res.y = base.y + up.y * (height * parabola);
+
+    return res;
 }
 
 // Vector2i

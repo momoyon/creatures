@@ -43,13 +43,14 @@ struct Entity {
 
     Vector2 l_flap_to_pos;
     Vector2 r_flap_to_pos;
+
+    float flap_radius;
 };
 
-void physics_update_entity(Entity *e);
 void apply_force_to_entity(Entity *e, Vector2 force);
 void apply_gravity_to_entity(Entity *e);
 Entity make_entity(Vector2 pos, Entity_kind kind);
-void update_entity(Entity *e);
+void update_entity(Entity *e, float dt);
 void draw_entity(Entity *e, bool debug);
 
 #endif // ENTITY_H_

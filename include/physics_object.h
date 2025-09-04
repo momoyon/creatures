@@ -11,10 +11,13 @@ struct Physics_object {
     Vector2 acc;
     float friction;
     float mass;
+    float elasticity; // 0.f ~ 1.f
     bool affected_by_gravity;
+
+    bool collided_this_frame;
 };
 
-void update_physics_object(Physics_object *p);
+void update_physics_object(Physics_object *p, float dt);
 void apply_force(Physics_object *p, Vector2 force);
 float get_radius(Physics_object *p);
 

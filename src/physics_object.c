@@ -1,9 +1,13 @@
 #include <physics_object.h>
 #include <raymath.h>
 #include <common.h>
+#define COMMONLIB_REMOVE_PREFIX
+#include <commonlib.h>
 
-void update_physics_object(Physics_object *e) {
-    float dt = GetFrameTime();
+void update_physics_object(Physics_object *e, float dt) {
+    // We wanna make sure elasticity is in 0.f ~ 1.f
+    e->elasticity = clampf(e->elasticity, 0.f, 1.f);
+
     float scaled_mass = e->mass * 0.001f;
 
     // If gravity flag set, add gravity as a force (Fg = m * g)
@@ -29,5 +33,5 @@ void apply_force(Physics_object *p, Vector2 force) {
 }
 
 float get_radius(Physics_object *p) {
-    return (p->mass*1.5f) + 8.f;
+    return (p->mass*2.5f)+1.f;
 }

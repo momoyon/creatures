@@ -32,6 +32,19 @@
 #define SCREEN_HEIGHT (9 * FACTOR)
 #define SCREEN_SCALE 0.25
 
+typedef struct {
+    Vector2 pos;
+    float r;
+    float spawn_r;
+} Radius;
+
+
+typedef struct {
+    Radius *items;
+    size_t count;
+    size_t capacity;
+} Radiuses;
+
 typedef enum {
     MODE_NORMAL,
     MODE_EDIT,
@@ -137,6 +150,7 @@ int main(void)
     bool do_apply_force = false;
     bool follow_mouse = false;
     float mass = 1.f;
+    float elasticity = 0.5f;
     float force_magnitude = 1.f;
     /// 
     
@@ -154,11 +168,32 @@ int main(void)
 
     Surfaces surfaces = {0};
 
+    Radiuses radiuses = {0};
+    Alarm radius_alarm = { .alarm_time = 0.25f };
+
     add_bound_as_surfaces(bounds, &surfaces);
+
+    static double accumulator = 0.0;
+    const float FIXED_STEP = 1.0f / 360.0f; // or 1/60
+    const float MAX_ACCUM = 0.25f;          // cap accumulated time to avoid spiral of death
+    const float MAX_FRAME_DT = 0.25f;
+
+
+    /// @DEBUG
+    Vector2 target = {10, 0};
+    Vector2 t_pos = {0};
+    Vector2 start = {0};
+    float t = 0.f;
+    ///
 
     while (!quit && !WindowShouldClose()) {
         arena_reset(&temp_arena);
         const char* title_str = arena_alloc_str(temp_arena, "%s | %d FPS", window_name, GetFPS());
+
+        float frame_dt = GetFrameTime();
+        if (frame_dt > MAX_FRAME_DT) frame_dt = MAX_FRAME_DT;
+        accumulator += frame_dt;
+        if (accumulator > MAX_ACCUM) accumulator = MAX_ACCUM;
 
         SetWindowTitle(title_str);
 
@@ -178,24 +213,24 @@ int main(void)
         }
 
         if (IsKeyDown(KEY_A)) {
-            cam.target.x -= GetFrameTime() * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
+            cam.target.x -= frame_dt * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
         }
         if (IsKeyDown(KEY_D)) {
-            cam.target.x += GetFrameTime() * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
+            cam.target.x += frame_dt * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
         }
         if (IsKeyDown(KEY_W)) {
-            cam.target.y -= GetFrameTime() * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
+            cam.target.y -= frame_dt * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
         }
         if (IsKeyDown(KEY_S)) {
-            cam.target.y += GetFrameTime() * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
+            cam.target.y += frame_dt * cam_speed * (IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f);
         }
 
         if (IsKeyDown(KEY_E)) {
-            cam.zoom += GetFrameTime();
+            cam.zoom += frame_dt;
         }
 
         if (IsKeyDown(KEY_Q)) {
-            cam.zoom -= GetFrameTime();
+            cam.zoom -= frame_dt;
             if (cam.zoom <= 0.001f) cam.zoom = 0.001f;
         }
         
@@ -203,22 +238,58 @@ int main(void)
 
         /// @DEBUG
         if (IsKeyDown(KEY_ONE)) {
-            mass -= GetFrameTime();
-            if (mass <= 1.f) mass = 1.f;
+            mass -= frame_dt;
+            if (mass <= 0.001f) mass = 0.001f;
         }
 
         if (IsKeyDown(KEY_TWO)) {
-            mass += GetFrameTime();
+            mass += frame_dt;
+        }
+
+        /// @DEBUG
+        if (IsKeyDown(KEY_LEFT_CONTROL)) {
+            if (IsKeyDown(KEY_LEFT)) {
+                t -= frame_dt;
+                if (t < 0.f) t = 0.f;
+            }
+            if (IsKeyDown(KEY_RIGHT)) {
+                t += frame_dt;
+                if (t > 1.f) t = 1.f;
+            }
+
+        }
+        ///
+
+        if (IsKeyDown(KEY_THREE)) {
+            elasticity -= frame_dt;
+            if (elasticity <= 0.f) mass = 0.f;
+        }
+
+        if (IsKeyDown(KEY_FOUR)) {
+            elasticity += frame_dt;
+            if (elasticity > 1.f) elasticity = 1.f;
         }
 
         if (IsKeyPressed(KEY_SPACE)) {
             Entity e = make_entity(m_world, edit_entity_kind);
             e.phy.friction = 0.001f;
             e.phy.mass = mass;
+            e.phy.elasticity = elasticity;
+
             darr_append(entities, e);
         }
-        do_apply_force   = IsKeyDown(KEY_X);
-        follow_mouse  = IsKeyDown(KEY_C);
+        do_apply_force = IsKeyDown(KEY_X);
+        force_magnitude = IsKeyDown(KEY_LEFT_SHIFT) ? 2.f : 1.f;
+        if (do_apply_force && on_alarm(&radius_alarm, frame_dt)) {
+            float R = 100.f;
+            Radius r = {
+                .pos = m_world,
+                .spawn_r = R,
+                .r = R,
+            };
+            darr_append(radiuses, r);
+        }
+        follow_mouse = IsKeyDown(KEY_C);
         ///
 
         /// @DEBUG
@@ -252,87 +323,70 @@ int main(void)
 
         // Update
 
+        /// @DEBUG
+        target = m_world;
+        t_pos = v2_parabolic_lerp(start, target, t, 100.f, v2(0.f, -1.f));
+        ///
+
         // Mode-specific Update
         switch (current_mode) {
         case MODE_NORMAL: {
-            // Update entities 
-            for (size_t i = 0; i < entities.count; ++i) {
-                Entity *e = &entities.items[i];
-                if (e->dead) continue;
+            while (accumulator >= FIXED_STEP) {
+                float dt = FIXED_STEP;
+                // Update entities 
+                for (size_t i = 0; i < entities.count; ++i) {
+                    Entity *e = &entities.items[i];
+                    if (e->dead) continue;
+                    e->phy.affected_by_gravity = true;
 
-                if (do_apply_force) {
-                    Vector2 force = Vector2Scale(Vector2Normalize(Vector2Subtract(m_world, e->phy.pos)), force_magnitude);
-                    apply_force(&e->phy, force);
-                }
-                
-                if (follow_mouse) {
-                    e->target = m_world;
+                    if (do_apply_force) {
+                        Vector2 force = Vector2Scale(Vector2Normalize(Vector2Subtract(m_world, e->phy.pos)), force_magnitude);
+                        apply_force(&e->phy, force);
+                    }
+                    
+                    if (follow_mouse) {
+                        e->target = m_world;
+                    }
+
+                    // Collision with surfaces
+                    for (int si = 0; si < surfaces.count; si++) {
+                        Surface *surf = &surfaces.items[si];
+                        surface_resolve_with_physics_object(surf, &e->phy, dt);
+                    }
+
+                    update_entity(e, dt);
+                    
+                    // e->pos = warp_in_bounds(e->pos, bounds);
                 }
 
-                float radius = get_radius(&e->phy);
+                // Update spider
+                spider.phy.affected_by_gravity = true;
+                spider.l_foot.affected_by_gravity = true;
+                spider.r_foot.affected_by_gravity = true;
+
                 // Collision with surfaces
                 for (int si = 0; si < surfaces.count; si++) {
                     Surface *surf = &surfaces.items[si];
+                    surface_resolve_with_physics_object(surf, &spider.phy, dt);
+                    surface_resolve_with_physics_object(surf, &spider.l_foot, dt);
+                    surface_resolve_with_physics_object(surf, &spider.r_foot, dt);
+                }
+                
+                update_spider(&spider, dt);
 
-                    Vector2 diff = Vector2Subtract(surf->end, surf->start);
-                    Vector2 normal = Vector2Normalize(v2(-diff.y, diff.x));
-                    float D = signed_2d_cross_point_line(surf->start, surf->end, e->phy.pos);
-                    bool was_on_left = D > radius;
-
-                    if (!was_on_left) {
-                        normal.x = diff.y;
-                        normal.y = -diff.x;
-                    }
-
-                    Physics_object next_phy = e->phy;
-                    update_physics_object(&next_phy);
-
-                    if (coll_detect_circle_line_segment(surf->start, surf->end, next_phy.pos, radius, NULL, NULL)) {
-                        D = signed_2d_cross_point_line(surf->start, surf->end, next_phy.pos);
-                        bool will_be_on_left = D < -radius;
-
-                        if (was_on_left != will_be_on_left) {
-                            Vector2 reflect_force = Vector2Reflect(Vector2Normalize(e->phy.vel), normal);
-                            float vel_mag = Vector2Length(e->phy.vel);
-                            e->phy.vel = Vector2Scale(Vector2Normalize(reflect_force), vel_mag * 0.9f);
-
-                            // log_debug("Reflect force: %f, %f vs Velocity: %f, %f", reflect_force.x, reflect_force.y, e->phy.vel.x, e->phy.vel.y);
-                        }
+                // Update radiuses
+                for (int i = radiuses.count-1; i >= 0; --i) {
+                    Radius *r = &radiuses.items[i];
+                    r->pos = m_world;
+                    if (r->r <= 0.f) {
+                        darr_delete(radiuses, Radius, i);
+                    } else {
+                        r->r -= dt * force_magnitude * 100.f;
                     }
 
                 }
-                // if (coll_resolve_bounds(bounds, &e->phy.pos, get_radius(e))) {
-                //     e->phy.affected_by_gravity = false;
-                //     e->phy.vel = Vector2Scale(e->phy.vel, -0.25f);
-                // }
-
-                update_entity(e);
-                
-                // e->pos = warp_in_bounds(e->pos, bounds);
+                accumulator -= FIXED_STEP;
             }
-
-            // Update spider
-            spider.phy.affected_by_gravity = true;
-            spider.l_foot.affected_by_gravity = true;
-            spider.r_foot.affected_by_gravity = true;
-
-            // if (coll_resolve_bounds(bounds, &spider.phy.pos, get_radius((Entity *)&spider))) {
-            //     spider.phy.affected_by_gravity = false;
-            //     spider.phy.vel = Vector2Scale(spider.phy.vel, -0.25f);
-            // }
-
-            // if (coll_resolve_bounds(bounds, &spider.l_foot.pos, 2.f)) {
-            //     spider.l_foot.affected_by_gravity = false;
-            //     spider.l_foot.vel = Vector2Scale(spider.l_foot.vel, -0.25f);
-            // }
-
-            // if (coll_resolve_bounds(bounds, &spider.r_foot.pos, 2.f)) {
-            //     spider.r_foot.affected_by_gravity = false;
-            //     spider.r_foot.vel = Vector2Scale(spider.r_foot.vel, -0.25f);
-            // }
-
-            update_spider(&spider);
-
         } break;
         case MODE_EDIT: {
         } break;
@@ -347,6 +401,12 @@ int main(void)
         /// @DEBUG
         draw_surface(&s, debug_draw);
         ///
+        
+        /// @DEBUG
+        DrawCircleV(start, 2.f, WHITE);
+        DrawCircleV(t_pos, 2.f, YELLOW);
+        DrawCircleV(target, 2.f, WHITE);
+        ///
        
         // Draw Surfaces
         for (size_t i = 0; i < surfaces.count; ++i) {
@@ -360,6 +420,14 @@ int main(void)
             draw_entity(e, debug_draw);
         }
 
+        // Draw radiuses
+        for (int i = radiuses.count-1; i >= 0; --i) {
+            Radius *r = &radiuses.items[i];
+            Color c = WHITE;
+            c.a = mapf(r->r, r->spawn_r, 0.f, 0, 255);
+            DrawCircleLinesV(r->pos, r->r, c);
+        }
+
         // Draw Spider
         draw_spider(&spider, debug_draw);
 
@@ -370,10 +438,19 @@ int main(void)
         if (debug_draw) {
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "cam: %f, %f (x%f)", cam.target.x, cam.target.y, cam.zoom);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "m_world: %f, %f", m_world.x, m_world.y);
-            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "spider: %f, %f", spider.phy.pos.x, spider.phy.pos.y);
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "spider: %f, %f {%fkg, %fkg}", spider.phy.pos.x, spider.phy.pos.y, spider.l_foot.mass, spider.r_foot.mass);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Apply force: %s (%f)", do_apply_force ? "true" : "false", force_magnitude);
             DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "mass: %f", mass);
-            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Entities count: %zu", entities.count);
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "elasticity: %f", elasticity);
+
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "%s", "--------------------------------------------------");
+
+            DRAW_INFO(DEFAULT_FONT_SIZE, RED, "Entities count: %zu", entities.count);
+            DRAW_INFO(DEFAULT_FONT_SIZE, RED, "Radiuses count: %zu", radiuses.count);
+
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "%s", "--------------------------------------------------");
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Spider LF on GROUND: %s", (spider.l_foot.collided_this_frame ? "true" : "false"));
+            DRAW_INFO(DEFAULT_FONT_SIZE, WHITE, "Spider RF on GROUND: %s", (spider.r_foot.collided_this_frame ? "true" : "false"));
 
             BeginMode2D(cam);
             // DrawRectangleLinesEx(bounds, 1.f, WHITE);
