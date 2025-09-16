@@ -18,21 +18,78 @@ void update_spider(Spider *s, float dt) {
     
     // Stand
     bool can_stand = false;
+    Vector2 target = s->target;
+
     s->phy.affected_by_gravity = true;
-    float stand_speed = 1.f;
+    int n = 0;
     if (s->l_foot.collided_this_frame) {
         can_stand |= true;
-        stand_speed *= 2.f;
+        n++;
     }
     if (s->r_foot.collided_this_frame) {
         can_stand |= true;
-        stand_speed *= 2.f;
+        n++;
+    }
+
+    if (n==1) {
+        // NOTE: One foot is on floor
+
     }
 
     if (can_stand) {
-        Vector2 to_target = Vector2Scale(Vector2Normalize(Vector2Subtract(s->target, s->phy.pos)), stand_speed);
+        Vector2 to_target = Vector2Normalize(Vector2Subtract(target, s->phy.pos));
         s->phy.pos = Vector2Add(s->phy.pos, to_target);
         s->phy.affected_by_gravity = false;
+    }
+
+
+    /// Walk @WIP
+    if (can_stand) {
+        // Update foot targets
+        float dist2_l_foot_to_head = Vector2DistanceSqr(s->phy.pos, s->l_foot.pos);
+        float dist2_r_foot_to_head = Vector2DistanceSqr(s->phy.pos, s->r_foot.pos);
+
+        // log_debug("dist2_l_foot_to_head = %.2f", dist2_l_foot_to_head);
+        // log_debug("dist2_r_foot_to_head = %.2f", dist2_r_foot_to_head);
+
+        if (dist2_l_foot_to_head >= MAX_DIST2_FOOT) {
+            s->l_foot_target.x = s->phy.pos.x - 10.f;
+            s->l_foot_target.y = s->l_foot.pos.y;
+        }
+
+        if (dist2_r_foot_to_head >= MAX_DIST2_FOOT) {
+            s->r_foot_target.x = s->phy.pos.x + 10.f;
+            s->r_foot_target.y = s->r_foot.pos.y;
+        }
+
+
+        // Update foots
+        float dist2_l_foot_to_target = Vector2Distance(s->l_foot_target, s->l_foot.pos);
+        float dist2_r_foot_to_target = Vector2Distance(s->r_foot_target, s->r_foot.pos);
+
+        if (dist2_l_foot_to_target >= 1.f) {
+            if (s->l_foot_lerp_t == 0.f) {
+                s->l_foot_from = s->l_foot.pos;
+            } else {
+                s->l_foot.pos = v2_parabolic_lerp(s->l_foot_from, s->l_foot_target, s->l_foot_lerp_t, 50.f, v2(0.f, -1.f));
+            }
+            s->l_foot_lerp_t += dt;
+            if (s->l_foot_lerp_t >= 1.f) {
+                s->l_foot_lerp_t = 0.f;
+            }
+        }
+
+        if (dist2_r_foot_to_target >= 1.f) {
+            if (s->r_foot_lerp_t == 0.f) {
+                s->r_foot_from = s->r_foot.pos;
+            } else {
+                s->r_foot.pos = v2_parabolic_lerp(s->r_foot_from, s->r_foot_target, s->r_foot_lerp_t, 50.f, v2(0.f, -1.f));
+            }
+            s->r_foot_lerp_t += dt;
+            if (s->r_foot_lerp_t >= 1.f) {
+                s->r_foot_lerp_t = 0.f;
+            }
+        }
     }
 
     update_physics_object(&s->phy, dt);
@@ -42,7 +99,6 @@ void update_spider(Spider *s, float dt) {
 
     update_leg_end_to_start(&s->l_leg);
     update_leg_end_to_start(&s->r_leg);
-
 }
 
 Spider make_spider(Vector2 pos) {

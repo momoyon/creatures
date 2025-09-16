@@ -143,6 +143,13 @@ int main(void)
     Entities entities = {0};
     Spider spider = make_spider(v2xx(0));
 
+    spider.l_foot_target.y = -5.f;
+    spider.r_foot_target.y = -5.f;
+    spider.l_foot.pos.y    = -5.f;
+    spider.r_foot.pos.y    = -5.f;
+    spider.target.y        = -5.f;
+    spider.phy.pos.y       = -5.f;
+
     // Edit
     Entity_kind edit_entity_kind = EK_BASE;
     
@@ -153,18 +160,13 @@ int main(void)
     float elasticity = 0.5f;
     float force_magnitude = 1.f;
     /// 
-    
-    /// @DEBUG
-    Surface s = {0};
-    ///
 
     Rectangle bounds = {
         .x = -width*1.f,
-        .y = -height*1.f,
+        .y = -height*2.f,
         .width = width*2.f,
         .height = height*2.f,
     };
-
 
     Surfaces surfaces = {0};
 
@@ -294,13 +296,10 @@ int main(void)
 
         /// @DEBUG
         if (IsKeyDown(KEY_T)) {
-            s.start = m_world;
+            spider.r_foot.pos = m_world;
         }
-        if (IsKeyDown(KEY_Y)) {
-            s.end = m_world;
-        }
-        if (IsKeyPressed(KEY_SIX)) {
-            darr_append(surfaces, s);
+        if (IsKeyDown(KEY_R)) {
+            spider.l_foot.pos = m_world;
         }
         ///
 
@@ -398,9 +397,6 @@ int main(void)
         // Draw
         BeginMode2D(cam);
 
-        /// @DEBUG
-        draw_surface(&s, debug_draw);
-        ///
         
         /// @DEBUG
         DrawCircleV(start, 2.f, WHITE);

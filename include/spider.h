@@ -20,8 +20,14 @@ struct Spider {
     Physics_object l_foot;
     Physics_object r_foot;
 
+    Vector2 l_foot_from;
+    Vector2 r_foot_from;
+
     Vector2 l_foot_target;
     Vector2 r_foot_target;
+
+    float l_foot_lerp_t;
+    float r_foot_lerp_t;
 
     Vector2 target;
 
